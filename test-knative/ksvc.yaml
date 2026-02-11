@@ -1,0 +1,37 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: sample-app
+  namespace: autoscale-test
+  labels:
+    networking.knative.dev/visibility: cluster-local
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/min-scale: "0"
+        autoscaling.knative.dev/max-scale: "50"
+        autoscaling.knative.dev/metric: "rps"
+        autoscaling.knative.dev/target: "100"
+        autoscaling.knative.dev/window: "60s"
+    spec:
+      containerConcurrency: 0
+      containers:
+      - name: nginx
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+        resources:
+          limits:
+            cpu: 900m
+            memory: 1024Mi
+          requests:
+            cpu: 500m
+            memory: 512Mi
+      nodeSelector:
+        gke-pool-type: autoscale-test
+      tolerations:
+      - effect: NoSchedule
+        key: autoscale-test
+        operator: Equal
+        value: "true"
