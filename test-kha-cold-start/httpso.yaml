@@ -1,0 +1,21 @@
+apiVersion: http.keda.sh/v1alpha1
+kind: HTTPScaledObject
+metadata:
+  name: __NAME__-httpso
+  namespace: autoscale-test
+spec:
+  hosts:
+  - __NAME__.local
+  pathPrefixes:
+  - /
+  scaleTargetRef:
+    name: __NAME__
+    service: __NAME__
+    port: 80
+  replicas:
+    min: 0
+    max: 2
+  scalingMetric:
+    requestRate:
+      targetValue: 10
+      window: 1m

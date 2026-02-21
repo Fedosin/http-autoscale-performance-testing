@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: __NAME__
+  namespace: autoscale-test
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: __NAME__
+  template:
+    metadata:
+      labels:
+        app: __NAME__
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+        resources:
+          limits:
+            cpu: 900m
+            memory: 1024Mi
+          requests:
+            cpu: 500m
+            memory: 512Mi
+      nodeSelector:
+        gke-pool-type: autoscale-test
+      tolerations:
+      - effect: NoSchedule
+        key: autoscale-test
+        operator: Equal
+        value: "true"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: __NAME__
+  namespace: autoscale-test
+spec:
+  selector:
+    app: __NAME__
+  ports:
+  - port: 80
+    targetPort: 80
