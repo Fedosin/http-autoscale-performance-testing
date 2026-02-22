@@ -8,7 +8,7 @@
 #
 # Environment variables:
 #   NAMESPACE     - Kubernetes namespace (default: autoscale-test)
-#   KHA_VERSION   - KHA Helm chart version to install (default: 0.12.1)
+#   KHA_VERSION   - KHA Helm chart version to install (default: 0.12.2)
 #
 
 set -euo pipefail
@@ -17,7 +17,7 @@ set -euo pipefail
 # Configuration
 # ---------------------------------------------------------------------------
 NAMESPACE="${NAMESPACE:-autoscale-test}"
-KHA_VERSION="${KHA_VERSION:-0.12.1}"
+KHA_VERSION="${KHA_VERSION:-0.12.2}"
 
 HELM_REPO_NAME="kedacore"
 HELM_REPO_URL="https://kedacore.github.io/charts"
@@ -29,7 +29,7 @@ TAINT_VALUE="true"
 TAINT_EFFECT="NoSchedule"
 
 INTERCEPTOR_MIN_REPLICA_COUNT=3
-INTERCEPTOR_MAX_REPLICA_COUNT=50
+INTERCEPTOR_MAX_REPLICA_COUNT=3
 SCALER_REPLICA_COUNT=1
 OPERATOR_REPLICA_COUNT=1
 
@@ -51,7 +51,7 @@ Commands:
 
 Environment variables:
   NAMESPACE     Kubernetes namespace (default: autoscale-test)
-  KHA_VERSION   KHA Helm chart version (default: 0.12.1)
+  KHA_VERSION   KHA Helm chart version (default: 0.12.2)
 EOF
     exit 1
 }
