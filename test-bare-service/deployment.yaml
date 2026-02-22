@@ -1,3 +1,38 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sample-app-nginx
+  namespace: autoscale-test
+data:
+  nginx.conf: |
+    worker_processes auto;
+    worker_rlimit_nofile 65535;
+    pid /tmp/nginx.pid;
+
+    events {
+      worker_connections 8192;
+      multi_accept on;
+      use epoll;
+    }
+
+    http {
+      access_log off;
+      sendfile on;
+      tcp_nopush on;
+      tcp_nodelay on;
+      keepalive_timeout 65;
+      keepalive_requests 100000;
+
+      server {
+        listen 80 reuseport;
+        server_name _;
+        # Tiny static body keeps per-request work low for throughput tests.
+        location / {
+          return 200 "ok\n";
+        }
+      }
+    }
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -15,16 +50,24 @@ spec:
     spec:
       containers:
       - name: nginx
-        image: nginx:alpine
+        image: nginx:1.27-alpine
         ports:
         - containerPort: 80
         resources:
-          limits:
-            cpu: 900m
-            memory: 1024Mi
           requests:
-            cpu: 500m
-            memory: 512Mi
+            cpu: 200m
+            memory: 64Mi
+          limits:
+            memory: 256Mi
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+          readOnly: true
+      volumes:
+      - name: nginx-config
+        configMap:
+          name: sample-app-nginx
       nodeSelector:
         gke-pool-type: autoscale-test
       tolerations:
