@@ -55,7 +55,7 @@ TAINT_EFFECT="NoSchedule"
 # Paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "${SCRIPT_DIR}")"
-TEST_KHA_DIR="${PROJECT_DIR}/test-kha"
+TEST_KHA_DIR="${PROJECT_DIR}/test-kha-throughput"
 
 # Background process PIDs (set during run)
 MONITOR_PID=""
