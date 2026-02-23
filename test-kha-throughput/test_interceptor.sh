@@ -14,6 +14,9 @@
 #   --results-dir DIR     Custom results directory (default: auto-generated)
 #   --duration SECS       Duration per RPS level (default: 60)
 #   --cooldown SECS       Cooldown between levels (default: 30)
+#   --conn-divisor N      Connections = RPS / N (default: 500)
+#   --min-connections N   Minimum fortio connections (default: 8)
+#   --max-connections N   Maximum fortio connections (default: 1024)
 #
 # Prerequisites:
 #   - kubectl configured and connected to the cluster
@@ -34,7 +37,7 @@ NO_CLEANUP=false
 RESULTS_DIR=""
 
 # RPS levels to test (ascending)
-RPS_LEVELS=(10 50 250 1000 2500 5000 10000 25000 50000 100000)
+RPS_LEVELS=(10000 25000 50000 100000 150000 200000 250000)
 
 # Target service configuration
 INTERCEPTOR_SVC="keda-add-ons-http-interceptor-proxy"
@@ -44,6 +47,15 @@ TARGET_URL="http://${INTERCEPTOR_SVC}:${INTERCEPTOR_PORT}/"
 
 # Load generator image
 FORTIO_IMAGE="fortio/fortio:latest"
+LOADGEN_CPU_REQUEST="2000m"
+LOADGEN_CPU_LIMIT="8000m"
+LOADGEN_MEMORY_REQUEST="256Mi"
+LOADGEN_MEMORY_LIMIT="1024Mi"
+
+# Connection model used for fortio -c
+CONNECTION_DIVISOR=500
+MIN_CONNECTIONS=8
+MAX_CONNECTIONS=1024
 
 # Node placement (matching deployment.yaml)
 NODE_SELECTOR_KEY="gke-pool-type"
@@ -78,9 +90,13 @@ Options:
   --results-dir DIR     Custom results directory
   --duration SECS       Duration per RPS level (default: 60)
   --cooldown SECS       Cooldown between levels (default: 30)
+  --conn-divisor N      Connections = RPS / N (default: 500)
+  --min-connections N   Minimum fortio connections (default: 8)
+  --max-connections N   Maximum fortio connections (default: 1024)
 
 Examples:
   ./scripts/test_interceptor.sh --duration 30 --cooldown 15
+  ./scripts/test_interceptor.sh --conn-divisor 400 --max-connections 2048
   ./scripts/test_interceptor.sh --no-cleanup --results-dir ./my-results
 EOF
     exit 0
@@ -104,10 +120,21 @@ parse_args() {
             --results-dir)   RESULTS_DIR="$2"; shift 2 ;;
             --duration)      DURATION="$2"; shift 2 ;;
             --cooldown)      COOLDOWN="$2"; shift 2 ;;
+            --conn-divisor)  CONNECTION_DIVISOR="$2"; shift 2 ;;
+            --min-connections) MIN_CONNECTIONS="$2"; shift 2 ;;
+            --max-connections) MAX_CONNECTIONS="$2"; shift 2 ;;
             --help|-h)       usage ;;
             *)               error "Unknown option: $1" ;;
         esac
     done
+
+    [[ "${CONNECTION_DIVISOR}" =~ ^[0-9]+$ ]] || error "--conn-divisor must be a positive integer"
+    [[ "${MIN_CONNECTIONS}" =~ ^[0-9]+$ ]] || error "--min-connections must be a positive integer"
+    [[ "${MAX_CONNECTIONS}" =~ ^[0-9]+$ ]] || error "--max-connections must be a positive integer"
+    [[ "${CONNECTION_DIVISOR}" -gt 0 ]] || error "--conn-divisor must be > 0"
+    [[ "${MIN_CONNECTIONS}" -gt 0 ]] || error "--min-connections must be > 0"
+    [[ "${MAX_CONNECTIONS}" -ge "${MIN_CONNECTIONS}" ]] || \
+        error "--max-connections must be >= --min-connections"
 }
 
 # ---------------------------------------------------------------------------
@@ -166,6 +193,22 @@ deploy_load_generator() {
         --overrides="$(cat <<EOFOVERRIDE
 {
   "spec": {
+    "containers": [
+      {
+        "name": "load-generator",
+        "image": "${FORTIO_IMAGE}",
+        "resources": {
+          "requests": {
+            "cpu": "${LOADGEN_CPU_REQUEST}",
+            "memory": "${LOADGEN_MEMORY_REQUEST}"
+          },
+          "limits": {
+            "cpu": "${LOADGEN_CPU_LIMIT}",
+            "memory": "${LOADGEN_MEMORY_LIMIT}"
+          }
+        }
+      }
+    ],
     "nodeSelector": {
       "${NODE_SELECTOR_KEY}": "${NODE_SELECTOR_VALUE}"
     },
@@ -266,9 +309,9 @@ stop_resource_monitor() {
 # ---------------------------------------------------------------------------
 calculate_connections() {
     local rps=$1
-    local c=$((rps / 10))
-    [[ ${c} -lt 4 ]]   && c=4
-    [[ ${c} -gt 128 ]] && c=128
+    local c=$((rps / CONNECTION_DIVISOR))
+    [[ ${c} -lt ${MIN_CONNECTIONS} ]] && c=${MIN_CONNECTIONS}
+    [[ ${c} -gt ${MAX_CONNECTIONS} ]] && c=${MAX_CONNECTIONS}
     echo "${c}"
 }
 
